@@ -1,0 +1,14 @@
+{
+  "name": "nexus-status",
+  "version": "1.0.0",
+  "description": "Unified data backend for the Nexus ecosystem",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2"
+  }
+}
