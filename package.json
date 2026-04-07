@@ -1,14 +1,19 @@
 {
   "name": "nexus-status",
-  "version": "1.0.0",
-  "description": "Unified data backend for the Nexus ecosystem",
-  "main": "index.js",
+  "version": "2.0.0",
+  "description": "Unified data backend for the Nexus ecosystem (Mini-hosted)",
+  "main": "server/server.js",
   "scripts": {
-    "dev": "vercel dev",
-    "deploy": "vercel --prod"
+    "start": "node server/server.js",
+    "dev": "node server/server.js",
+    "legacy:vercel-dev": "vercel dev",
+    "legacy:vercel-deploy": "vercel --prod"
   },
   "type": "commonjs",
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.2"
+    "@neondatabase/serverless": "^1.0.2",
+    "fastify": "^4.29.1",
+    "pg": "^8.20.0",
+    "pino-pretty": "^13.1.3"
   }
 }
