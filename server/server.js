@@ -1,6 +1,9 @@
 // Fastify entrypoint for nexus-status v2 (Mini-hosted).
-// Reads DATABASE_URL and NEXUS_STATUS_API_KEY from env.
+// Reads DATABASE_URL and NEXUS_STATUS_API_KEY from env (or .env file via dotenv).
 // Exposes the 5 original endpoints plus /api/health.
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const Fastify = require('fastify');
 
 const { requireApiKey } = require('./auth');
