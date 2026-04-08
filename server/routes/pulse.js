@@ -4,7 +4,14 @@
 const { pool } = require('../db');
 
 const VALID_STATUSES = new Set([
-  'working', 'waiting-for-user', 'idle', 'blocked', 'disconnected',
+  'working',
+  'waiting-for-user',
+  'needs-input',
+  'planning',
+  'idle',
+  'blocked',
+  'disconnected',
+  'completed',
 ]);
 
 async function pulseHandler(req, reply) {
