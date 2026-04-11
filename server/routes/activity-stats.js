@@ -96,8 +96,7 @@ async function activityStatsHandler(req, reply) {
       pool
         .query(
           `UPDATE sessions
-             SET status = 'disconnected',
-                 ended_at = last_activity
+             SET status = 'disconnected'
            WHERE status IN ('working','waiting-for-user','blocked')
              AND last_activity < NOW() - INTERVAL '15 minutes'`,
         )
