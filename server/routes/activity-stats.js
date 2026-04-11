@@ -24,11 +24,14 @@ async function activityStatsHandler(req, reply) {
        WHERE project_name NOT LIKE 'agent-%'`,
     );
 
-    // v2: active = any non-disconnected status
+    // activeSessions = live-right-now, matching the "running right now" copy on Omniat.
+    // 10min window + drop 'blocked' (stuck != running). Aggregates (last_active,
+    // total_hours) still use the 24h window for dashboard context.
     const sessionStatsQ = pool.query(
       `SELECT
          COUNT(*) FILTER (
-           WHERE status IN ('working','waiting-for-user','blocked')
+           WHERE status IN ('working','waiting-for-user')
+             AND last_activity > NOW() - INTERVAL '10 minutes'
          ) AS active_count,
          MAX(last_activity) AS last_active,
          COALESCE(SUM(EXTRACT(EPOCH FROM (last_activity - started_at)) / 3600), 0) AS total_hours
@@ -84,6 +87,21 @@ async function activityStatsHandler(req, reply) {
       pool
         .query(`DELETE FROM activity_events WHERE created_at < NOW() - INTERVAL '7 days'`)
         .catch((e) => req.log.warn({ err: e.message }, 'cleanup failed'));
+    }
+
+    // Opportunistic session reaper (1 in 50 requests).
+    // Sessions pulse every few seconds; anything 15+ min stale is dead.
+    // Transitions them to 'disconnected' so activeSessions stops counting ghosts.
+    if (Math.random() < 0.02) {
+      pool
+        .query(
+          `UPDATE sessions
+             SET status = 'disconnected',
+                 ended_at = last_activity
+           WHERE status IN ('working','waiting-for-user','blocked')
+             AND last_activity < NOW() - INTERVAL '15 minutes'`,
+        )
+        .catch((e) => req.log.warn({ err: e.message }, 'session reaper failed'));
     }
 
     return reply.send({
