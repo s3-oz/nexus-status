@@ -9,7 +9,11 @@ module.exports = withAuth(async (req, res) => {
   const sql = neon(process.env.DATABASE_URL);
 
   try {
-    // Git stats — aggregated across all projects
+    // Git stats — aggregated across all projects.
+    // The previous `updated_at > 24h` filter silently dropped projects whose
+    // git_stats row hadn't re-synced in a day, causing totals to swing wildly
+    // (e.g. 118 → 60 → 2 commits as sync jobs lapsed). The sync cadence is a
+    // separate problem to fix; the aggregate should not depend on it.
     const gitStats = await sql`
       SELECT
         COALESCE(SUM(commits_7d), 0) AS total_commits,
@@ -18,7 +22,6 @@ module.exports = withAuth(async (req, res) => {
         COALESCE(SUM(lines_prev_7d), 0) AS prev_lines,
         MAX(updated_at) AS last_stats_update
       FROM git_stats
-      WHERE updated_at > NOW() - INTERVAL '24 hours'
     `;
 
     // Total projects (all unique ever tracked, excluding agent- prefixed)
@@ -43,18 +46,18 @@ module.exports = withAuth(async (req, res) => {
       WHERE last_activity > NOW() - INTERVAL '24 hours'
     `;
 
-    // Recent events with diversity (latest N per project)
+    // Recent events — last 7 days, most recent first. The previous diversity
+    // query (ROW_NUMBER <= 10 per project, no time filter) pulled ancient
+    // events from dormant projects (config/xero) while capping fresh activity
+    // from active projects (nexus, research). Now just returns the most recent
+    // events across all projects in the last 7 days; the website's downstream
+    // filter (operation allowlist + project allowlist) picks what surfaces.
     const events = await sql`
-      WITH ranked AS (
-        SELECT session_id, project_name, operation, detail, created_at,
-          ROW_NUMBER() OVER (PARTITION BY project_name ORDER BY created_at DESC) AS rn
-        FROM activity_events
-      )
       SELECT session_id, project_name, operation, detail, created_at
-      FROM ranked
-      WHERE rn <= 10
+      FROM activity_events
+      WHERE created_at > NOW() - INTERVAL '7 days'
       ORDER BY created_at DESC
-      LIMIT 50
+      LIMIT 200
     `;
 
     // 24-hour pulse
