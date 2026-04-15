@@ -4,6 +4,10 @@ const { pool } = require('../db');
 
 async function activityStatsHandler(req, reply) {
   try {
+    // git_stats aggregate — previously filtered `updated_at > 24h` which dropped
+    // any project whose sync had lapsed, causing totals to swing wildly as jobs
+    // came in and out of the window. The aggregate should not depend on per-row
+    // sync freshness; the sync cadence is a separate problem to fix.
     const gitStatsQ = pool.query(
       `SELECT
          COALESCE(SUM(commits_7d), 0) AS total_commits,
@@ -11,8 +15,7 @@ async function activityStatsHandler(req, reply) {
          COALESCE(SUM(commits_prev_7d), 0) AS prev_commits,
          COALESCE(SUM(lines_prev_7d), 0) AS prev_lines,
          MAX(updated_at) AS last_stats_update
-       FROM git_stats
-       WHERE updated_at > NOW() - INTERVAL '24 hours'`,
+       FROM git_stats`,
     );
 
     const projectCountQ = pool.query(
@@ -39,15 +42,18 @@ async function activityStatsHandler(req, reply) {
        WHERE last_activity > NOW() - INTERVAL '24 hours'`,
     );
 
+    // Recent events — last 7 days, most recent first. Previous diversity query
+    // (ROW_NUMBER <= 10 per project, no time filter) pulled ancient events from
+    // dormant projects (config/xero) while capping fresh activity from active
+    // ones. Now just the most recent across all projects in the last 7 days;
+    // the website's downstream filter (operation + project allowlist) picks
+    // what surfaces publicly.
     const eventsQ = pool.query(
-      `WITH ranked AS (
-         SELECT session_id, project_name, operation, detail, created_at,
-           ROW_NUMBER() OVER (PARTITION BY project_name ORDER BY created_at DESC) AS rn
-         FROM activity_events
-       )
-       SELECT session_id, project_name, operation, detail, created_at
-       FROM ranked WHERE rn <= 10
-       ORDER BY created_at DESC LIMIT 50`,
+      `SELECT session_id, project_name, operation, detail, created_at
+       FROM activity_events
+       WHERE created_at > NOW() - INTERVAL '7 days'
+       ORDER BY created_at DESC
+       LIMIT 200`,
     );
 
     const pulseRowsQ = pool.query(
