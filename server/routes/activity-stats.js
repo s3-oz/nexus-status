@@ -47,13 +47,14 @@ async function activityStatsHandler(req, reply) {
     // dormant projects (config/xero) while capping fresh activity from active
     // ones. Now just the most recent across all projects in the last 7 days;
     // the website's downstream filter (operation + project allowlist) picks
-    // what surfaces publicly.
+    // what surfaces publicly. Limit is generous (1000) because most raw events
+    // are filtered out by the website — we need headroom so enough survive.
     const eventsQ = pool.query(
       `SELECT session_id, project_name, operation, detail, created_at
        FROM activity_events
        WHERE created_at > NOW() - INTERVAL '7 days'
        ORDER BY created_at DESC
-       LIMIT 200`,
+       LIMIT 1000`,
     );
 
     const pulseRowsQ = pool.query(
